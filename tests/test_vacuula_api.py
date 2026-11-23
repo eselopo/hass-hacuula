@@ -149,7 +149,6 @@ async def test_get_robots():
         assert robots[0]["serial"] == "ROBOT1"
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("nested", [False, True], ids=["direct", "nested"])
 async def test_get_robots_serial_keyed_dictionary(nested):
@@ -220,6 +219,7 @@ async def test_get_robots_ignore_non_robot_dictionary_entries():
         robots = await client.async_get_robots()
 
     assert robots == [{"type": "neato.gen4", "name": "Test D10", "serial": "GEN4_ID"}]
+
 
 @pytest.mark.asyncio
 async def test_cleaning_commands():
