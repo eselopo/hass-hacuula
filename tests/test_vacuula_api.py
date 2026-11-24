@@ -65,6 +65,79 @@ def test_robot_state_gen4_parsing():
     assert state.schedule_enabled is True
 
 
+
+def test_robot_state_gen4_vacuula_response_cleaning():
+    """Parse the actual Vacuula 1.1.1 Gen4 state.show response envelope."""
+    raw = {
+        "type": "response",
+        "id": "sample-request",
+        "code": 200,
+        "body": {
+            "state": "busy",
+            "action": "cleaning",
+            "errors": None,
+            "details": {
+                "charge": 97,
+                "is_charging": False,
+                "is_docked": False,
+            },
+        },
+    }
+
+    state = VacuulaRobotState.from_raw(raw, robot_type="neato.gen4")
+    assert state.action_description == "cleaning"
+    assert state.battery_level == 97
+    assert state.is_charging is False
+    assert state.is_docked is False
+    assert state.raw_state == raw
+
+
+def test_robot_state_gen4_vacuula_response_docked():
+    """Read charging and docking flags from Gen4 body.details."""
+    raw = {
+        "type": "response",
+        "code": 200,
+        "body": {
+            "state": "idle",
+            "action": "invalid",
+            "details": {
+                "charge": 88,
+                "is_charging": True,
+                "is_docked": True,
+            },
+        },
+    }
+
+    state = VacuulaRobotState.from_raw(raw, robot_type="gen4")
+    assert state.action_description == "idle"
+    assert state.battery_level == 88
+    assert state.is_charging is True
+    assert state.is_docked is True
+
+
+@pytest.mark.parametrize(
+    ("robot_state", "action", "expected"),
+    [
+        ("busy", "docking", "docking"),
+        ("paused", "cleaning", "paused"),
+        ("error", "cleaning", "error"),
+        ("busy", None, "busy"),
+    ],
+)
+def test_robot_state_gen4_vacuula_state_actions(robot_state, action, expected):
+    """Distinguish the robot state from its running action."""
+    raw = {
+        "body": {
+            "state": robot_state,
+            "action": action,
+            "details": {"charge": 50},
+        }
+    }
+
+    state = VacuulaRobotState.from_raw(raw, robot_type="gen4")
+    assert state.action_description == expected
+    assert state.battery_level == 50
+
 def test_robot_is_gen4_property():
     """Test VacuulaRobot is_gen4 property detection."""
     r_gen3 = VacuulaRobot(
