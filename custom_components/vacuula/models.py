@@ -60,7 +60,7 @@ class VacuulaRobotState:
         if not raw:
             return cls()
 
-        data = raw.get("data", raw)
+        data = raw.get("body", raw.get("data", raw))
         is_gen4 = "gen4" in robot_type.lower() or any(
             g in robot_type.lower() for g in ("d8", "d9", "d10")
         )
@@ -116,16 +116,20 @@ class VacuulaRobotState:
     def _parse_gen4(
         cls, data: dict[str, Any], raw: dict[str, Any]
     ) -> VacuulaRobotState:
-        """Parse Neato Gen4 state.show response."""
+        """Parse Neato Gen4 state.show responses (legacy and Vacuula 1.1.1)."""
         battery = data.get("battery", {})
         status = data.get("status", {})
+        details = data.get("details", {})
         dock = data.get("dock", {})
         dirtbin = data.get("dirtbin", {})
         schedule = data.get("schedule", {})
 
-        state_str = str(status.get("state", "idle")).lower()
+        state_str = str(status.get("state") or data.get("state", "idle")).lower()
 
-        # Normalize action description
+        # Vacuula Gen4 reports state="busy" with the current action separately.
+        if state_str == "busy":
+            state_str = str(data.get("action") or "busy").lower()
+
         if state_str in ("cleaning", "running"):
             action_description = "cleaning"
         elif state_str in ("docking", "returning"):
@@ -139,9 +143,15 @@ class VacuulaRobotState:
         else:
             action_description = state_str
 
-        is_docked = bool(dock.get("docked", False)) or state_str == "docked"
-        is_charging = bool(battery.get("charging", False))
-        is_bin_full = bool(dirtbin.get("alert", False) or dirtbin.get("full", False))
+        is_docked = bool(
+            details.get("is_docked", dock.get("docked", False))
+        ) or state_str == "docked"
+        is_charging = bool(
+            details.get("is_charging", battery.get("charging", False))
+        )
+        is_bin_full = bool(
+            dirtbin.get("alert", False) or dirtbin.get("full", False)
+        )
 
         error = status.get("error") or data.get("error")
 
@@ -150,7 +160,9 @@ class VacuulaRobotState:
             action_code=None,
             action_description=action_description,
             error=str(error) if error else None,
-            battery_level=int(battery.get("level", battery.get("charge", 0))),
+            battery_level=int(
+                details.get("charge", battery.get("level", battery.get("charge", 0)))
+            ),
             is_charging=is_charging,
             is_docked=is_docked,
             is_bin_full=is_bin_full,
